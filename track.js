@@ -1,76 +1,67 @@
-var data = {
-	resource_id: 'ed270bb8-340b-41f9-a7c6-e8ef587e6d11',
-	offset: 55 // offset by 55 because they started reporting ICU cases on April 1, 2020
-};
 
-$.ajax({
-	url: 'https://data.ontario.ca/api/3/action/datastore_search',
-	data: data,
-	dataType: 'jsonp',
-	cache: true,
-	success: function(data) {
-		console.log('Total results found: ', data)
-	}
-});
-
-const CURRENT_ICU_BEDS = 410;
-const EXPANDED_ICU_BEDS = 1310;
-
-let parseTime = d3.timeParse("%Y-%m-%dT%H:%M:%S");
-let formatTime = d3.timeFormat("%d-%b");
-
-let convertRecord = (record) => {
-	return {
-		...record,
-		"Reported Date": parseTime(record["Reported Date"])
+let fetchData = async () => {
+	let data = {
+		resource_id: 'ed270bb8-340b-41f9-a7c6-e8ef587e6d11',
+		// offset by 42 because projections started on March 19, 2020
+		// However they only started reporting ICU cases on April 1, 2020
+		offset: 42
 	};
+
+	return $.ajax({
+		url: 'https://data.ontario.ca/api/3/action/datastore_search',
+		data: data,
+		dataType: 'jsonp',
+		cache: true,
+		// success: function(data) {
+		// 	console.log('Total results found: ', data)
+		// }
+	});
 };
 
-let combine = (best, worst) => {
-	return best.map((record, index) => {
-		return {
-			date: formatTime(parseTime(record["Reported Date"])),
-			best: record["Number of patients in ICU with COVID-19"],
-			worst: worst[index]["Number of patients in ICU with COVID-19"]
-		}
-	}); // only show last five for testing purposes
+const parseTime = d3.timeParse("%Y-%m-%dT%H:%M:%S");
+const formatTime = d3.timeFormat("%d-%b");
+
+let getICU = (data, index) => {
+	return data[index] && data[index]["Number of patients in ICU with COVID-19"];
+}
+
+let combine = (best=[{}], worst=[{}], actual=[{}]) => {
+	let recordCount = Math.max(best.length, worst.length, actual.length);
+	let combined = [];
+
+	for (let i = 0; i < recordCount; i++) {
+		let date = (actual[i] || best[i] || worst[i])["Reported Date"];
+		combined.push({
+			"date": formatTime(parseTime(date)),
+			"actual": getICU(actual, i),
+			"best case projection": getICU(best, i),
+			"worst case projecction": getICU(worst, i)
+		});
+	}
+
+	return combined;
 };
 
-let getDate = (record) => record["Reported Date"];
-let getICU = (record) => record["Number of patients in ICU with COVID-19"];
-
-const bestCaseData = PROJECTIONS.best.map(convertRecord);
-const worstCaseData = PROJECTIONS.worst.map(convertRecord);
-
-const projectionsData = combine(PROJECTIONS.best, PROJECTIONS.worst);
-const columns = Object.keys(projectionsData[0]);
-const groupKey = columns[0];
-const keys = columns.slice(1);
-
-console.log({groupKey, keys});
-console.log(projectionsData);
-
-let generateChart = () => {
+let drawChart = (data, width=1600, height=900) => {
 	//Width and height
-	const w = 1600; //Make this scale with the container
-	const h = 900; //Make this scale with the container
+	const w = width; //Make this scale with the container
+	const h = height; //Make this scale with the container
 	const margin = ({top: 50, right: 30, bottom: 50, left: 40})
-
-	var startDate = d3.min(bestCaseData, getDate);
-	var endDate = d3.max(bestCaseData, getDate);
+	const columns = Object.keys(data[0]);
+	const groupKey = columns[0];
+	const keys = columns.slice(1);
 
 	let color = d3.scaleOrdinal()
-    						.range(["#98abc5", "#a05d56"])
+    						.range(["#478541", "#4DAEDB", "#DF6235"])
 
 	let xTimeScale = d3.scaleBand()
-										.domain(projectionsData.map(record => record[groupKey]))
+										.domain(data.map(record => record[groupKey]))
 										.range([margin.left, w - margin.right])
 										.paddingInner(0.1);
 
 	let xProjectionsScale = d3.scaleBand()
 														.domain(keys)
 														.range([0, xTimeScale.bandwidth()])
-														.paddingInner(0.05);
 
 	let yICUScale = d3.scaleLinear()
 										.domain([0, 3800])
@@ -126,7 +117,7 @@ let generateChart = () => {
 
   svg.append("g")
     .selectAll("g")
-    .data(projectionsData)
+    .data(data)
     .join("g")
       .attr("transform", d => `translate(${xTimeScale(d[groupKey])},0)`)
     .selectAll("rect")
@@ -148,74 +139,12 @@ let generateChart = () => {
 
   svg.append("g")
       .call(legend);
-
-	// //Create scale functions
-	// let xScale = d3.scaleTime()
-	// 			.domain([
-	// 				d3.timeDay.offset(startDate, -1),  //startDate minus one day, for padding
-	// 				endDate
-	// 			])
-	// 			.range([margin.left, w - margin.right]);
-	//
-	// let yScale = d3.scaleLinear()
-	// 			.domain([0, 3800]) // the projections document goes to 3800
-	// 			.range([h - margin.bottom, margin.top]);
-	//
-	// let yScaleBar = d3.scaleLinear()
-	// 			.domain([0, 3800]) // the projections document goes to 3800
-	// 			.range([0, h - margin.bottom]);
-	//
-	// //Define X axis
-	// let xAxis = d3.axisBottom()
-	// 			.scale(xScale)
-	// 			.ticks(bestCaseData.length + 2)
-	// 			.tickFormat(formatTime)
-	//
-	// //Define Y axis
-	// let yAxis = d3.axisLeft()
-	// 			.scale(yScale)
-	// 			.ticks(19);
-	//
-	// let svg = d3.select("main")
-	// 		.append("svg")
-	// 		.attr("width", w)
-	// 		.attr("height", h);
-	//
-	// svg.selectAll("rect")
-	// 	.data(bestCaseData)
-	// 	.enter()
-	// 	.append("rect")
-	// 	.attr("x", d => {
-	// 		let date = getDate(d);
-	// 		return xScale(date);
-	// 	})
-	// 	.attr("y", d => {
-	// 		let inICU = getICU(d)
-	// 		return yScale(inICU);
-	// 	})
-	// 	.attr("width", "10")
-	// 	.attr("height", d => {
-	// 		let inICU = getICU(d);
-	// 		var height = (h - margin.bottom) - yScale(inICU);
-	// 		return height;
-	// 	})
-	// 	.attr("class", (d, i) => `index-${i}`)
-	// 	.attr("fill", "rgb(78, 176, 221)");
-	//
-	// //Create X axis
-	// let xAxisElm = svg.append("g")
-	// 	.attr("class", "x axis")
-	// 	.attr("transform", `translate(0, ${h - margin.top})`)
-	// 	.call(xAxis);
-	//
-	// d3.select(".x.axis").selectAll("text")
-	// 	.attr("transform", "rotate(-90) translate(-25, -15)")
-	// 	// .attr("transform", `translate(0, 5)`);
-	//
-	// //Create Y axis
-	// svg.append("g")
-	// 	.attr("class", "y axis")
-	// 	.attr("transform", `translate(${margin.left}, 0)`)
-	// 	.call(yAxis);
-
 };
+
+let generateChart = async () => {
+	let fetched = await fetchData();
+	// console.log("fetched:", fetched.result.records);
+	let data = combine(PROJECTIONS.best, PROJECTIONS.worst, fetched.result.records);
+	drawChart(data);
+	// console.log("combined:", data);
+}
