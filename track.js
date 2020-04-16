@@ -42,7 +42,7 @@ let combine = (best=[{}], worst=[{}], actual=[{}]) => {
 	return combined;
 };
 
-let drawChart = (data, width=1600, height=900) => {
+let drawChart = (data, width=800, height=450) => {
 	//Width and height
 	const w = width; //Make this scale with the container
 	const h = height; //Make this scale with the container
@@ -112,8 +112,8 @@ let drawChart = (data, width=1600, height=900) => {
 
 	let svg = d3.select("main")
 			.append("svg")
-			.attr("width", w)
-			.attr("height", h);
+			.attr("preserveAspectRatio", "xMinYMin meet")
+			.attr("viewBox", `0 0 ${w} ${h}`);
 
   svg.append("g")
     .selectAll("g")
