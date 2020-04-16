@@ -42,7 +42,7 @@ let combine = (best=[{}], worst=[{}], actual=[{}]) => {
 	return combined;
 };
 
-let drawChart = (data, width=800, height=450) => {
+let drawChart = (selector, data, width=800, height=450) => {
 	//Width and height
 	const w = width; //Make this scale with the container
 	const h = height; //Make this scale with the container
@@ -110,7 +110,7 @@ let drawChart = (data, width=800, height=450) => {
 	      .text(d => d);
 	}
 
-	let svg = d3.select("main")
+	let svg = d3.select(selector)
 			.append("svg")
 			.attr("preserveAspectRatio", "xMinYMin meet")
 			.attr("viewBox", `0 0 ${w} ${h}`);
@@ -139,12 +139,16 @@ let drawChart = (data, width=800, height=450) => {
 
   svg.append("g")
       .call(legend);
+
+	// add figcaption
+	d3.select(selector)
+			.append("figcaption")
+			.text("The projected best case, worst case and actual ICU bed requirements for COVID-19 patients in Ontario.")
+
 };
 
-let generateChart = async () => {
+let generateChart = async (selector) => {
 	let fetched = await fetchData();
-	// console.log("fetched:", fetched.result.records);
 	let data = combine(PROJECTIONS.best, PROJECTIONS.worst, fetched.result.records);
-	drawChart(data);
-	// console.log("combined:", data);
+	drawChart(selector, data);
 }
