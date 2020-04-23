@@ -4,7 +4,8 @@ let fetchData = async () => {
 		resource_id: 'ed270bb8-340b-41f9-a7c6-e8ef587e6d11',
 		// offset by 42 because projections started on March 19, 2020
 		// However they only started reporting ICU cases on April 1, 2020
-		offset: 42
+		offset: 42,
+		limit: 43
 	};
 
 	return $.ajax({
